@@ -1,241 +1,334 @@
 CST8918 - DevOps: Infrastructure as Code  
 Prof: Robert McKenney
 
-# LAB-A01 Weather App
+# LAB-A03 Pulumi Weather App
 
-In this hands-on lab activity we will lay the foundations for adopting infrastructure as code (IaC) using a simple Node.js based web application and Kubernetes on Docker Desktop.
+In this hands-on lab activity you will revisit the weather app from [LAB-A01](https://github.com/rlmckenney/cst8918-w24-a01-weather). This time you have been asked to make the solution more robust and further reduce redundant hits on the OpenWeather API. To accomplish this, the team has decided to replace the in-app memory cache with a Redis cache that will be shared by all container instances.
+
+Additionally, it is time to deploy this app to our public cloud provider (Azure). The team has decided to use [Pulumi](https://pulumi.com) to manage the provisioning of infrastructure resources and deployment of the application.
 
 ## Objectives
 
-- Review general application requirements and solution implementation choices
-- Review the benefits of containerization
-- Get an introduction to Kubernetes
+### Part One (Lab-A03)
 
-## Part 1 - Web Application
+- Use Pulumi to provision the IaC resources
+  - Azure Container Registry (ACR)
+  - Azure Container Instances (ACI)
+- Use Pulumi to package the application into a Docker container and deploy it
 
-### Scenario
+### Part Two (Hybrid-H03)
 
-You are a software engineer and your company wants to create a new web application that will display the current weather conditions for a given location (because there just aren't enough weather apps on the market :smiley:).
+- Add proper secret handling for the OpenWeather API key
+- Modify the application code to utilize a shared Redis instance
+- Update the Pulumi config to provision additional IaC resources
+  - Azure Cache for Redis
+- Update the container image version and redeploy with Pulumi
 
-Your team decides to use the [OpenWeather API](https://openweathermap.org) as the source of weather data. Calls to this API require an API Key (access token) which should remain private. To avoid exposing this API Key to the browser, the solution will require a backend API server to proxy the calls to OpenWeather.
+### Teams
 
-Additionally, your Product Manager has asked the team to ensure that the app does not exceed the OpenWeather API free tier limits.
+- Work in pairs using a shared GitHub repo.
+- Divide the tasks and work in parallel.
+- Practice committing, pushing and resolving conflicts (if needed).
 
-### Implementation Choices
+### Starter Repo
 
-The team is most experienced with React for frontend development; and since a simple backend API will also be needed, the [Remix](https://remix.run) meta framework is selected. Hey if it is good enough for Shopify, it is good enough for us.
+Fork and then clone this repo to have a clean common starting point. Note that there are a couple of changes from the original repo, most significantly the Dockerfile. Do not simply continue from the previous assignment's repo.
 
-To manage the OpenWeather API limits, the Remix loader route will need to implement some results caching.
+Create a working branch for this lab called `lab-a03`. Do all of your work in this branch. Do not push code directly to the `main` branch.
 
-- initial implementation: in-memory cache object
-- eventual implementation: Redis shared cache for scalability
+> Remember to run `npm install` in the project folder after you clone it. This will install all of the Node.js dependencies required to do local testing with the Remix dev server.
 
-### Dev pre-requisites
+## Part One (A01) - Add Pulumi to the project
 
-- [Git CLI](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-- The current LTS version of [Node.js](https://nodejs.org/en) (20.x.x)
-- [Docker Desktop](https://docs.docker.com/get-docker/) with a free Docker Hub account
-- Code editor, e.g. [VS Code](https://code.visualstudio.com/download)
-- [Kubernetes CLI (kubectl)](https://kubernetes.io/docs/tasks/tools/install-kubectl-macos/)
-
-### TODO
-
-- sign-up for a free account at [OpenWeather API](https://openweathermap.org)
-- subscribe to the _One Call API 3.0_ option
-- create a new API key
-- set a local environment variable in your terminal called `WEATHER_API_KEY` with the value of your API key. It will be needed later.
-
-### Test the application
-
-Your team lead has created an initial implementation, which is ready for you to test.
-
-- fork the [GitHub repo](https://github.com/rlmckenney/cst8918-w24-a01-weather)
-- clone a local copy of your forked repo
-- start the dev server with `npm run dev`
-- open link displayed in your terminal with a browser, e.g. http://localhost:59287
-
-You can terminate the dev server by typing `CTL-C` in the terminal when you are done.
-
-## Part 2 - Kubernetes Deployment
-
-Now that we have a running prototype for the application, it is time to think about how to deploy it. As with most web apps and microservices, our Weather App will be packaged and deployed as a Docker container. This will allow a consistent runtime for local dev testing, continuous integration (CI) testing, and continuous deployment (CD) into one of our cloud IaaS providers (AWS, Azure, GCP).
-
-To make the process of packaging and deploying our containers consistent, repeatable and fast, we need some automation tools. The most common container orchestration tool is [Kubernetes](https://kubernetes.io), and that is what we will use.
-
-### Create a container image
-
-Reference: [What are containers?](https://www.docker.com/resources/what-container/#:~:text=A%20Docker%20container%20image%20is,tools%2C%20system%20libraries%20and%20settings.)
-
-#### Dockerfile
-
-The Dockerfile describes the runtime environment for our application including OS version, application code, and any dependency libraries. The container images are build in multiple steps (layers) so that minimal deltas can be distributed as the application evolves over time.
-
-Review the Dockerfile included at the top level of your project files.
-
-#### Build the container image
-
-In the terminal, at the top level of your project, run the `docker build --tag=cst8918-a01-weather-app .` command. This will tell the docker engine to look for the default `Dockerfile` in the current directory and use those instructions to create the Docker container image. When that is complete, the image will be tagged with the name `cst8918-a01-weather-app:latest`.
-
-#### Test the container
-
-Quickly deploy an instance of the container using Docker desktop.
+Create a new folder at the top level of the project called `infrastructure`, then make that your working directory.
 
 ```sh
-docker run -d --name weather -p 8080:8080 --env WEATHER_API_KEY=<your-api-key> cst8918-01-weather-app
+mkdir infrastructure && cd infrastructure
 ```
 
-Then open `http://localhost:8080` in a browser to make sure that the container is working as expected.
-If everything is working, you can stop the container with `docker stop weather`. If the container is not working as expected, review the earlier steps carefully and try again.
-
-#### Push the container image to the registry
-
-If this is your first time using Docker Hub, you will need to authenticate with Docker Hub first.
+Use the Pulumi CLI to initialize this infrastructure folder as a Pulumi project that will use Typescript.
 
 ```sh
-docker login docker.io
+pulumi new typescript
 ```
 
-Then tag the container image with an alias that is prefixed with your Docker Hub username, and push that to the Docker Hub container registry.
+Provide the following values when prompted:
+
+- _project name:_ cst8918-a03-infra
+- _project description:_ A Remix app deployed with the Azure Container App service
+- _stack name:_ prod
+
+This will create a minimal Pulumi config for a **prod** stack. It doesn't do anything yet. Let's fix that!
+
+### Set the _prod_ environment config variables
+
+There are going to be a few environment variables that we need to set. That can be done either via the Pulumi CLI, or by directly editing the `Pulumi.prod.yaml` file (which does not exist until you create it or add the first config value).
+
+Start with setting the desired Azure region for your production deployment. Our organization is using `westus3`. We are going to use the `@pulumi\azure-native` SDK to interface with Azure, so the command is ...
 
 ```sh
-docker tag cst8918-a01-weather-app <docker-hub-username>/cst8918-a01-weather-app
-docker push <docker-hub-username>/cst8918-a01-weather-app
+pulumi config set azure-native:location westus3
 ```
 
-### Working with Kubernetes Locally
+We will use the Pulumi Docker library module to generate the containerize image. It needs to know where to find the Dockerfile for our application, the public port number to expose, CPU and Memory limits.
 
-- enable Kubernetes in Docker Desktop
-- [install kubectl](https://kubernetes.io/docs/tasks/tools/) (kubernetes CLI)
-
-Add a new folder to the project where we can put all of the kubernetes related code, called `k8s`.
-
-Make sure that kubectl is talking to Docker Desktop
-
-```sh
-kubectl config use-context docker-desktop
-```
-
-#### Namespace
-
-Namespaces help to isolate container workloads that share host nodes. Create a namespace for this class `cst8918`.
-Create a new file `k8s/a01_namespace.yaml` with the following content.
+You can edit the `Pulumi.prod.yaml` file directly to add the remaining config params. It should look like this.
 
 ```yaml
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: cst8918
+config:
+  azure-native:location: westus3
+  cst8918-a03-infra:appPath: ../
+  cst8918-a03-infra:containerPort: '80'
+  cst8918-a03-infra:publicPort: '80'
+  cst8918-a03-infra:cpu: '1'
+  cst8918-a03-infra:memory: '2'
+  cst8918-a03-infra:prefixName: 'cst8918-a03-<your-username>'
 ```
 
-Activate that namespace with the `kubectl apply ./k8s/a01_namespace.yaml` command in the terminal.
+> NOTE: please update the `prefixName` value to replace `<your-username>` with your correct college username. e.g. my username is `mckennr`, so my prefixName would be `cst8918-a03-mckennr`. We will use this prefixName in several places when creating various infrastructure resources.
 
-#### Deployment
+### Install some helper modules
 
-This describes the application workload: container image, container count, CPU and memory limits, ports, etc.
-Create a `a01_deployment.yaml` file in the `k8s` folder.
-
-```yaml
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: weather-app-deployment
-  namespace: cst8918
-  labels:
-    app: weather-app
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: weather-app
-  # This is the pod template
-  template:
-    metadata:
-      labels:
-        app: weather-app
-    spec:
-      containers:
-        - name: weather-app-container
-          # this is the Docker image that you created
-          image: <your-docker-hub-username>/cst8918-a01-weather-app:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-```
-
-##### API Key secret
-
-The API key can be created as a [Kubernetes environment encrypted secret](https://kubernetes.io/docs/concepts/configuration/secret/) and then injected into the containers at runtime.
-
-Run `kubectl create secret generic weather --from-literal='api-key=<your-secret-api-key>' -n cst8918` in the terminal, and then add this to the _env_ section of the deployment file ...
-
-```yaml
-- name: WEATHER_API_KEY
-  valueFrom:
-    secretKeyRef:
-      name: weather
-      key: api-key
-```
-
-Activate the deployment with `kubectl apply ./k8s/a01_deployment.yaml -n cst8918`. The `-n` flag tells Kubernetes to use the namespace that we defined earlier.
-
-#### Service
-
-Now that you have the application containers deployed, the last step is to define a _service_ that will provide an ingress port and act as a load balancer for the running containers.
-
-Allow incoming traffic on the standard HTTP port (80) and have the load balancer forward traffic to the containers on target port 8080.
-
-Create `k8s/a01_service.yaml` with
-
-```yaml
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: weather-app-service
-  namespace: cst8918
-spec:
-  selector:
-    app: weather-app
-  ports:
-    - port: 80
-      targetPort: 8080
-  type: LoadBalancer
-```
-
-Activate the service with `kubectl apply ./k8s/a01_service.yaml -n cst8918`. Now test it by opening `http:localhost` in a browser.
-
-#### Clean-up
-
-When you are all done, shut down all of the resources that are no longer needed.
+Since we are going to deploy Docker containers on Azure, you will need to install a couple of extra Pulumi modules. Make sure that you are still in the `infrastructure` folder, then run ...
 
 ```sh
-#!/bin/sh
-kubectl delete deployment weather-app-deployment -n cst8918
-kubectl delete service weather-app-service -n cst8918
-kubectl delete secret weather -n cst8918
-kubectl delete namespace cst8918
+npm i @pulumi/docker @pulumi/azure-native
 ```
 
-## Demo
+### Declare the desired infrastructure
 
-For grading this lab activity please show the following to your lab teacher:
+Its time to define the desired infrastructure shape. Open up the `index.ts` file in the `infrastructure` folder. Right now, it should just have one line, importing Pulumi.
 
-- Browser with the app running at `http://localhost`
-- all files in the `k8s` folder
-- `kubectl get namespaces`
-- `kubectl get services -n cst8918`
-- `kubectl get pods -n cst8918`
+```ts
+import * as pulumi from '@pulumi/pulumi'
+```
+
+#### Load the application config information
+
+To begin, load the configuration variables for the given environment (stack)
+
+> Notice that to keep things simpler, we are providing default values to fall back on if the config options are missing. A better way to handle this would be to use a validation library like Zod and throw an error if a required value is missing.
+
+```ts
+// Import the configuration settings for the current stack.
+const config = new pulumi.Config()
+const appPath = config.get('appPath') || '../'
+const prefixName = config.get('prefixName') || 'cst8918-a03-student'
+const imageName = prefixName
+const imageTag = config.get('imageTag') || 'latest'
+// Azure container instances (ACI) service does not yet support port mapping
+// so, the containerPort and publicPort must be the same
+const containerPort = config.getNumber('containerPort') || 80
+const publicPort = config.getNumber('publicPort') || 80
+const cpu = config.getNumber('cpu') || 1
+const memory = config.getNumber('memory') || 2
+```
+
+> NOTE: we have not set a value for `imageTag` in the stack config yet. We will set the version number for the container image as the tag value in a later step.
+
+#### Define the container registry
+
+According to the architecture diagram, our solution calls for a private container image repository rather than using Docker Hub as we did with the initial prototype. It is a best practice to place the application solution resources in a resource group for easier identification and monitoring.
+
+Create a new resource group. Use the prefixName + '-rg' for the name.
+At the top of your index.ts file, import the `resources` and `containerregistry` modules from the `@pulumi/azure-native` package.
+
+```ts
+import * as resources from '@pulumi/azure-native/resources'
+import * as containerregistry from '@pulumi/azure-native/containerregistry'
+```
+
+Append this definition code to the bottom of your index.ts file. We will use the cost-optimized _basic_ registry SKU.
+
+```ts
+// Create a resource group.
+const resourceGroup = new resources.ResourceGroup(`${prefixName}-rg`)
+
+// Create the container registry.
+const registry = new containerregistry.Registry(`${prefixName}-acr`, {
+  resourceGroupName: resourceGroup.name,
+  adminUserEnabled: true,
+  sku: {
+    name: containerregistry.SkuName.Basic
+  }
+})
+```
+
+Before you can tell the Docker module to store the container image in the container registry, you will need to get the registry's authentication credentials.
+
+```ts
+// Get the authentication credentials for the container registry.
+const registryCredentials = containerregistry
+  .listRegistryCredentialsOutput({
+    resourceGroupName: resourceGroup.name,
+    registryName: registry.name
+  })
+  .apply(creds => {
+    return {
+      username: creds.username!,
+      password: creds.passwords![0].value!
+    }
+  })
+```
+
+This seems like a good time to check our work. Temporarily, append these stack output instructions so that you can make sure that everything is working up to this point.
+
+```ts
+export const acrServer = registry.loginServer
+export const acrUsername = registryCredentials.username
+```
+
+And then run it in the terminal ...
+
+```sh
+pulumi up
+```
+
+Review the `plan` output, and correct any errors if needed. After you say 'yes' to apply the update, you should see the something similar to the following near the end of the output ...
+
+```sh
+Outputs:
+  + acrServer  : "containerregistry84d73e7d.azurecr.io"
+  + acrUsername: "containerRegistry84d73e7d"
+```
+
+> NOTE: Pulumi automatically adds the random characters to the end of the registry name to ensure uniqueness. Yours will be slightly different.
+
+**SUCCESS !**
+
+> OK now you can delete those last two `export` lines. You won't need them any more.
+
+#### Create the Docker image and store it in the container registry
+
+Import the `@pulumi/docker` module at the top of the index.ts file and then append the container definition to the bottom. Of note, the `build.platform` option tells Docker what the target runtime architecture is. This will make sure to pull the right base image when processing the Dockerfile.
+
+```ts
+// Other imports at the top of the module
+import * as docker from '@pulumi/docker'
+
+// ... rest of the code
+
+// Define the container image for the service.
+const image = new docker.Image(`${prefixName}-image`, {
+  imageName: pulumi.interpolate`${registry.loginServer}/${imageName}:${imageTag}`,
+  build: {
+    context: appPath,
+    platform: 'linux/amd64'
+  },
+  registry: {
+    server: registry.loginServer,
+    username: registryCredentials.username,
+    password: registryCredentials.password
+  }
+})
+```
+
+Notice the code above references the `imageTag` variable. You can use this to assign the current version of the application before publishing it. This makes it really easy to roll-back if needed! You should set it now. Use the pulumi CLI to set it to `v0.2.0` -- our app is still in the prototype stage :wink:
+
+```sh
+pulumi config set imageTag "v0.2.0"
+```
+
+#### Create an Azure Container App service container group
+
+Create a container group in the Azure Container App service and make it publicly accessible. Our system design calls for a linux container host (Azure also supports Windows hosts). This is a big chunk of code.
+
+- the first section defines the container group meta info, including the host OS type and the image registry to pull from
+- then it defines the container images to use, any environment variables to inject, which target port to use on the container and resource limits for the containers.
+- the last section defines the public ingress: DNS name and IP address.
+
+```ts
+// Create a container group in the Azure Container App service and make it publicly accessible.
+const containerGroup = new containerinstance.ContainerGroup(
+  `${prefixName}-container-group`,
+  {
+    resourceGroupName: resourceGroup.name,
+    osType: 'linux',
+    restartPolicy: 'always',
+    imageRegistryCredentials: [
+      {
+        server: registry.loginServer,
+        username: registryCredentials.username,
+        password: registryCredentials.password
+      }
+    ],
+    containers: [
+      {
+        name: imageName,
+        image: image.imageName,
+        ports: [
+          {
+            port: containerPort,
+            protocol: 'tcp'
+          }
+        ],
+        environmentVariables: [
+          {
+            name: 'PORT',
+            value: containerPort.toString()
+          },
+          {
+            name: 'WEATHER_API_KEY',
+            value: '<your-secret-key>'
+          }
+        ],
+        resources: {
+          requests: {
+            cpu: cpu,
+            memoryInGB: memory
+          }
+        }
+      }
+    ],
+    ipAddress: {
+      type: containerinstance.ContainerGroupIpAddressType.Public,
+      dnsNameLabel: `${imageName}`,
+      ports: [
+        {
+          port: publicPort,
+          protocol: 'tcp'
+        }
+      ]
+    }
+  }
+)
+```
+
+> Replace **\<your-secret-key\>** with your real API key. Yes, unencrypted for now -- we will take care of that in part two.
+
+##### Define the output values
+
+You will need to know the final IP address and the public URL to test the app in your browser.
+
+```ts
+// Export the service's IP address, hostname, and fully-qualified URL.
+export const hostname = containerGroup.ipAddress.apply(addr => addr!.fqdn!)
+export const ip = containerGroup.ipAddress.apply(addr => addr!.ip!)
+export const url = containerGroup.ipAddress.apply(
+  addr => `http://${addr!.fqdn!}:${containerPort}`
+)
+```
+
+##### Test it!
+
+We still need to handle the secret encryption, but before we go any further it is a good idea to test your deployment.
+
+```sh
+pulumi up
+```
+
+After the deployment completes, you should be able to see the deployed resources in your Azure portal, and you should be able to open the output `URL` (e.g. http://cst8918-a03-mckennr.westus3.azurecontainer.io/) in your browser to see the app running.
+
+### OpenWeather API secret key
+
+There is one more config variable that we need to set, and it needs to be an encrypted secret.
+
+```sh
+pulumi set
+```
+
+### Demo / Submit
+
+When you have completed Part One, make sure that you have committed all of your changes with git, and pushed your commits up to GitHub. Remember, this should be on a branch call `lab-a03`.
+
+Submit a link to your GitHub repo for this assignment in Brightspace. Also submit a screenshot of your browser showing the application running -- make sure the public URL is clearly visible.
