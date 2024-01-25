@@ -1,3 +1,10 @@
 {
-  "cSpell.words": ["appid", "rlmckenney", "spec"]
+  "cSpell.words": [
+    "appid",
+    "containerinstance",
+    "containerregistry",
+    "pulumi",
+    "rlmckenney",
+    "spec"
+  ]
 }
