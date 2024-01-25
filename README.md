@@ -319,16 +319,18 @@ pulumi up
 
 After the deployment completes, you should be able to see the deployed resources in your Azure portal, and you should be able to open the output `URL` (e.g. http://cst8918-a03-mckennr.westus3.azurecontainer.io/) in your browser to see the app running.
 
-### OpenWeather API secret key
-
-There is one more config variable that we need to set, and it needs to be an encrypted secret.
-
-```sh
-pulumi set
-```
-
 ### Demo / Submit
+
+**Both partners should submit on Brightspace**
 
 When you have completed Part One, make sure that you have committed all of your changes with git, and pushed your commits up to GitHub. Remember, this should be on a branch call `lab-a03`.
 
 Submit a link to your GitHub repo for this assignment in Brightspace. Also submit a screenshot of your browser showing the application running -- make sure the public URL is clearly visible.
+
+## Clean-up!
+
+When you are all done, don't forget to clean up the unneeded Azure resources.
+
+```sh
+pulumi destroy
+```
