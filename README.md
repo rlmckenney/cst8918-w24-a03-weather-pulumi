@@ -70,7 +70,7 @@ Start with setting the desired Azure region for your production deployment. Our 
 pulumi config set azure-native:location westus3
 ```
 
-We will use the Pulumi Docker library module to generate the containerize image. It needs to know where to find the Dockerfile for our application, the public port number to expose, CPU and Memory limits.
+We will use the Pulumi Docker library module to generate the containerize image. It needs to know the path to find the _Dockerfile_ for our application, the public port number to expose, and the CPU and Memory resource limits.
 
 You can edit the `Pulumi.prod.yaml` file directly to add the remaining config params. It should look like this.
 
