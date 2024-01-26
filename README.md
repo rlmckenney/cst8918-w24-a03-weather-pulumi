@@ -145,7 +145,7 @@ Append this definition code to the bottom of your index.ts file. We will use the
 const resourceGroup = new resources.ResourceGroup(`${prefixName}-rg`)
 
 // Create the container registry.
-const registry = new containerregistry.Registry(`${prefixName}-acr`, {
+const registry = new containerregistry.Registry(`${prefixName}ACR`, {
   resourceGroupName: resourceGroup.name,
   adminUserEnabled: true,
   sku: {
@@ -238,6 +238,11 @@ Create a container group in the Azure Container App service and make it publicly
 - the last section defines the public ingress: DNS name and IP address.
 
 ```ts
+// Other imports at the top of the module
+import * as containerinstance from '@pulumi/azure-native/containerinstance'
+
+// ... rest of the code
+
 // Create a container group in the Azure Container App service and make it publicly accessible.
 const containerGroup = new containerinstance.ContainerGroup(
   `${prefixName}-container-group`,
