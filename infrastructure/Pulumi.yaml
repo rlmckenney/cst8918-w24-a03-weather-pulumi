@@ -1,0 +1,3 @@
+name: cst8918-a03-infra
+runtime: nodejs
+description: A Remix app deployed with the Azure Container App service
