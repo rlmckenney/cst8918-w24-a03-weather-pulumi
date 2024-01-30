@@ -5,5 +5,5 @@ config:
   cst8918-a03-infra:cpu: '1'
   cst8918-a03-infra:imageTag: v0.2.0
   cst8918-a03-infra:memory: '2'
-  cst8918-a03-infra:prefixName: 'cst8918a03song0138'
+  cst8918-a03-infra:prefixName: 'cst8918a03sult0054'
   cst8918-a03-infra:publicPort: '80'

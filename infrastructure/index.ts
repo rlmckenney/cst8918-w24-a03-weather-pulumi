@@ -88,8 +88,8 @@ const containerGroup = new containerinstance.ContainerGroup(
               value: containerPort.toString()
             },
             {
-              name: 'WEATHER_API_KEY',
-              value: 'removed api key'
+              name: 'assignment1',
+              value: '0f6dd005db8f4449cbb57983675895b6'
             }
           ],
           resources: {
