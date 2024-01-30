@@ -1,0 +1,3 @@
+config:
+  azure-native:location: westus3
+  cst8918-a03-infra:imageTag: v0.2.0
